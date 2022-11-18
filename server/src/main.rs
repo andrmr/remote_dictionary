@@ -1,8 +1,11 @@
-use std::{net::SocketAddr, str::FromStr};
+use std::{net::SocketAddr, str::FromStr, sync::{Arc, Mutex}};
 use clap::Parser;
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener};
 
 use common::dto::{Request, Response};
+
+mod db;
+use db::*;
 
 #[derive(Parser)]
 #[command(about="Dictionary server", long_about=None)]
@@ -24,6 +27,18 @@ pub async fn main() -> anyhow::Result<()> {
     
     let address = SocketAddr::from_str(&address)
         .expect("Unable to parse address");
+    
+    let db_path = std::path::Path::new("./storage.db");
+    
+    let db = if db_path.exists() {
+        println!("Opening storage");
+        Db::open(db_path.to_str().unwrap())?
+    } else {
+        println!("Creating storage");
+        Db::create(db_path.to_str().unwrap())?
+    };
+
+    let db = Arc::new(db);
 
     let listener = TcpListener::bind(address).await?;
     println!("Listening on {:?}", listener.local_addr());
@@ -33,6 +48,7 @@ pub async fn main() -> anyhow::Result<()> {
         println!("Accepted client with address {:?}", address);
 
         let mut connection = common::net::Connection::from_socket(socket);
+        let db = db.clone();
 
         tokio::spawn(async move {
             while let Ok(Some(msg)) = connection.read().await {
@@ -40,7 +56,17 @@ pub async fn main() -> anyhow::Result<()> {
                     println!("Processing request {:?}", req);
                     let res = match req {
                         Request::Get { key } => {
-                            Response::Get { ok: true, val: Some("dummy_val".into()), err: None }
+                            match db.get(&key) {
+                                Ok(Some(val)) => Response::Get { ok: true, val: Some(val), err: None },
+                                Ok(None) => Response::Get { ok: false, val: None, err: Some(String::from("not found")) },
+                                Err(e) => Response::Get { ok: false, val: None, err: Some(e.to_string()) }
+                            }
+                        },
+                        Request::Set { key, val } => {
+                            match db.set(&key, &val) {
+                                Ok(()) => Response::Set { ok: true, err: None },
+                                Err(e) => Response::Set { ok: false, err: Some(e.to_string()) }
+                            }
                         },
                         _ => {
                             Response::Empty

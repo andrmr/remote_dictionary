@@ -13,3 +13,4 @@ Components:
 Implementation:
 - Rust, Tokio
 - JSON frames over async TCP
+- Persy as persistent DB
