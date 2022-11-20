@@ -1,6 +1,6 @@
-use std::{net::SocketAddr, str::FromStr, sync::{Arc, Mutex}};
+use std::{net::SocketAddr, str::FromStr, sync::Arc};
 use clap::Parser;
-use tokio::{net::TcpListener};
+use tokio::net::TcpListener;
 
 use common::dto::{Request, Response};
 
@@ -27,18 +27,8 @@ pub async fn main() -> anyhow::Result<()> {
     
     let address = SocketAddr::from_str(&address)
         .expect("Unable to parse address");
-    
-    let db_path = std::path::Path::new("./storage.db");
-    
-    let db = if db_path.exists() {
-        println!("Opening storage");
-        Db::open(db_path.to_str().unwrap())?
-    } else {
-        println!("Creating storage");
-        Db::create(db_path.to_str().unwrap())?
-    };
 
-    let db = Arc::new(db);
+    let dict = Arc::new(get_db::<String, String>("dict".to_owned())?);
 
     let listener = TcpListener::bind(address).await?;
     println!("Listening on {:?}", listener.local_addr());
@@ -48,7 +38,7 @@ pub async fn main() -> anyhow::Result<()> {
         println!("Accepted client with address {:?}", address);
 
         let mut connection = common::net::Connection::from_socket(socket);
-        let db = db.clone();
+        let dict = dict.clone();
 
         tokio::spawn(async move {
             while let Ok(Some(msg)) = connection.read().await {
@@ -56,14 +46,14 @@ pub async fn main() -> anyhow::Result<()> {
                     println!("Processing request {:?}", req);
                     let res = match req {
                         Request::Get { key } => {
-                            match db.get(&key) {
+                            match dict.get(&key).await {
                                 Ok(Some(val)) => Response::Get { ok: true, val: Some(val), err: None },
                                 Ok(None) => Response::Get { ok: false, val: None, err: Some(String::from("not found")) },
                                 Err(e) => Response::Get { ok: false, val: None, err: Some(e.to_string()) }
                             }
                         },
                         Request::Set { key, val } => {
-                            match db.set(&key, &val) {
+                            match dict.set(&key, &val).await {
                                 Ok(()) => Response::Set { ok: true, err: None },
                                 Err(e) => Response::Set { ok: false, err: Some(e.to_string()) }
                             }
@@ -81,4 +71,20 @@ pub async fn main() -> anyhow::Result<()> {
             }
         });
     }
+}
+
+
+fn get_db<K, V>(name: String) -> DbResult<Db<K, V>> {
+    let path = format!("./{}.db", name);
+    let path = std::path::Path::new(&path);
+
+    let db: Db<K, V> = if path.exists() {
+        println!("Opening storage");
+        Db::open(path.to_str().unwrap(), name)?
+    } else {
+        println!("Creating storage");
+        Db::create(path.to_str().unwrap(), name)?
+    };
+
+    Ok(db)
 }

@@ -13,4 +13,10 @@ Components:
 Implementation:
 - Rust, Tokio
 - JSON frames over async TCP
-- Persy as persistent DB
+- Persy as persistent DB with async cache on top
+
+TODO:
+- [] the async cache needs LRU eviction and size limit
+- [] the DB interface needs to be more generic to support swapping engines; Sled DB might be a better alternative than Persy
+- [] task req: collect stats
+- [] task opt: bloom filter
