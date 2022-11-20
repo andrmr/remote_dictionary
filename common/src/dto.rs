@@ -11,7 +11,7 @@ pub enum Request {
 pub enum Response {
     Get { ok: bool, val: Option<String>, err: Option<String> },
     Set { ok: bool, err: Option<String> },
-    Stats { ok: bool, total: Option<u64>, err: Option<String> },
+    Stats { ok: bool, total: Option<u64>, good: Option<u64>, bad: Option<u64> },
 
     #[default]
     Empty,

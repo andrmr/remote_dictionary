@@ -13,7 +13,9 @@ pub struct Db<K, V> {
 
 pub type DbResult<T> = anyhow::Result<T>;
 
-impl<K, V> Db<K, V> {
+impl<K, V> Db<K, V>
+where K: persy::IndexType, V: persy::IndexType
+{
     pub fn open(path: &str, name: String) -> DbResult<Self> {
         let db = Persy::open(path, Config::new())?;
 
@@ -29,8 +31,7 @@ impl<K, V> Db<K, V> {
 
         let db = Self::open(path, name)?;
         let mut tx = db.db.begin()?;
-        tx.create_index::<String, String>("dict", persy::ValueMode::Replace)?;
-        tx.create_index::<String, u32>("stats", persy::ValueMode::Replace)?;
+        tx.create_index::<K, V>(&db.name, persy::ValueMode::Replace)?;
         let prepared = tx.prepare()?;
         prepared.commit()?;
 
@@ -45,10 +46,10 @@ impl<K, V> Db<K, V> {
         // Some(None)   => the key is cached, without value
         // Some(val)    => the value is cached
         if let Some(cached) = self.cache.get(&key).await {
-            println!("cache hit");
+            println!("Cache hit");
             Ok(cached)
         } else {
-            println!("cache miss");
+            println!("Cache miss");
             let mut tx = self.db.begin()?;
             let val = tx.one::<K, V>(&self.name, &key)?;
 

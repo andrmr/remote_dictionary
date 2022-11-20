@@ -16,7 +16,11 @@ Implementation:
 - Persy as persistent DB with async cache on top
 
 TODO:
-- [] the async cache needs LRU eviction and size limit
-- [] the DB interface needs to be more generic to support swapping engines; Sled DB might be a better alternative than Persy
-- [] task req: collect stats
-- [] task opt: bloom filter
+* [-] the async cache needs LRU eviction and size limit
+* [-] the DB interface needs to be more generic to support swapping engines; Sled DB might be a better alternative than Persy  
+* fix incoherency in the async DB/cache i.e. need transactions and locking   
+* [-] task opt: bloom filter
+
+
+DONE:
+* [+] task req: collect stats 
