@@ -38,6 +38,22 @@ where K: persy::IndexType, V: persy::IndexType
         Ok(db)
     }
 
+    pub fn open_or_create(name: String) -> DbResult<Self>
+    {
+        let path = format!("./{}.db", name);
+        let path = std::path::Path::new(&path);
+
+        let db: Db<K, V> = if path.exists() {
+            println!("Opening storage");
+            Db::open(path.to_str().unwrap(), name)?
+        } else {
+            println!("Creating storage");
+            Db::create(path.to_str().unwrap(), name)?
+        };
+
+        Ok(db)
+    }
+
     pub async fn get(&self, key: &K) -> DbResult<Option<V>>
     where K: Eq + Hash + persy::IndexType, V: Clone + persy::IndexType
     {

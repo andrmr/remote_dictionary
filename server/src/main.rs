@@ -3,10 +3,7 @@ use clap::Parser;
 use tokio::{net::TcpListener, sync::mpsc::{unbounded_channel, UnboundedSender}};
 
 use common::dto::{Request, Response};
-
-mod db;
-use db::*;
-
+use server::Db;
 
 const OK_GET: u8 = 0;
 const BAD_GET: u8 = 1;
@@ -33,8 +30,8 @@ pub async fn main() -> anyhow::Result<()> {
     let address = SocketAddr::from_str(&address)
         .expect("Unable to parse address");
 
-    let dict = Arc::new(get_db::<String, String>("dict".to_owned())?);
-    let stats = Arc::new(get_db::<u8, u64>("stats".to_owned())?);
+    let dict = Arc::new(Db::<String, String>::open_or_create("dict".to_owned())?);
+    let stats = Arc::new(Db::<u8, u64>::open_or_create("stats".to_owned())?);
 
     let listener = TcpListener::bind(address).await?;
     println!("Listening on {:?}", listener.local_addr());
@@ -109,24 +106,6 @@ pub async fn main() -> anyhow::Result<()> {
             }
         });
     }
-}
-
-
-fn get_db<K, V>(name: String) -> DbResult<Db<K, V>>
-where K: persy::IndexType, V: persy::IndexType
-{
-    let path = format!("./{}.db", name);
-    let path = std::path::Path::new(&path);
-
-    let db: Db<K, V> = if path.exists() {
-        println!("Opening storage");
-        Db::open(path.to_str().unwrap(), name)?
-    } else {
-        println!("Creating storage");
-        Db::create(path.to_str().unwrap(), name)?
-    };
-
-    Ok(db)
 }
 
 fn make_stats_handler(s: Arc<Db<u8, u64>>) -> UnboundedSender<bool> {
