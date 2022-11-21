@@ -22,7 +22,7 @@ TODO:
 * [-] the DB interface needs to be more generic to support swapping engines; Sled DB might be a better alternative than Persy  
 * fix incoherency in the async DB/cache i.e. need transactions and locking   
 * [-] task opt: bloom filter
-
+* [-] reduce string copies; clean-up generics where needed
 
 DONE:
 * [+] task req: collect stats 
