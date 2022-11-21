@@ -5,6 +5,8 @@ use tokio_serde::formats::{SymmetricalJson, Json};
 use tokio_util::codec as tu_codec;
 use tokio_serde as ts;
 
+// Wrapper over a framed JSON stream
+// TODO: make this generic and allow other encoding schemas
 pub struct Connection {
     stream: ts::Framed<tu_codec::Framed<TcpStream, tu_codec::LengthDelimitedCodec>, Value, Value, Json<Value, Value>>
 }

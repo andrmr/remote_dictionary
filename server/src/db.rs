@@ -5,6 +5,8 @@ use anyhow::Ok;
 use persy::{Persy, Config};
 use tokio::sync::RwLock;
 
+// Wrapper over Persy, an in-process database with persistent disk storage
+// TODO: Sled as alternative
 pub struct Db<K, V> {
     name: String,
     db: Persy,
@@ -89,6 +91,7 @@ where K: persy::IndexType, V: persy::IndexType
 }
 
 
+// Multi-reader, single-writer cache
 struct AsyncCache<K, V> {
     cache: RwLock<HashMap<K, V>>
 }

@@ -20,6 +20,7 @@ struct Cli {
 
 #[tokio::main]
 pub async fn main() -> anyhow::Result<()> {
+    // parse args
     let cli = Cli::parse();
     
     let address = match cli.address {
@@ -30,9 +31,12 @@ pub async fn main() -> anyhow::Result<()> {
     let address = SocketAddr::from_str(&address)
         .expect("Unable to parse address");
 
+    // makes dbs
     let dict = Arc::new(Db::<String, String>::open_or_create("dict".to_owned())?);
     let stats = Arc::new(Db::<u8, u64>::open_or_create("stats".to_owned())?);
 
+    // start server and handle clients
+    // each client request is followed by a server response
     let listener = TcpListener::bind(address).await?;
     println!("Listening on {:?}", listener.local_addr());
 
@@ -108,10 +112,10 @@ pub async fn main() -> anyhow::Result<()> {
     }
 }
 
+// Creates an async and unbounded multi-producer / single-consumer channel for publishing stats.
 fn make_stats_handler(s: Arc<Db<u8, u64>>) -> UnboundedSender<bool> {
     let (stats_producer, mut stats_recorder) = unbounded_channel::<bool>();
 
-    // let s = stats.clone();
     tokio::spawn(async move {
         while let Some(stat) = stats_recorder.recv().await {
             match stat {

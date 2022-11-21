@@ -13,6 +13,8 @@ lazy_static! {
         .unwrap();
 }
 
+// TODO: mixed workload benches
+
 fn db_get_benchmark(c: &mut Criterion) {
     let key = "dummy".to_owned();
 

@@ -14,6 +14,8 @@ Implementation:
 - Rust, Tokio
 - JSON frames over async TCP
 - Persy as persistent DB with async cache on top
+- Clap as CLI args parser
+- Criterion for benchmarking
 
 TODO:
 * [-] the async cache needs LRU eviction and size limit

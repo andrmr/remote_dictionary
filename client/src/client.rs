@@ -5,6 +5,8 @@ use common::net::Connection;
 
 pub type ClientResult<T> = anyhow::Result<T>;
 
+// Client library used to connect to Remote Dictionary server
+// TODO: add inner mutability for the connection field, so the client object can be used immutably
 pub struct Client {
     address: SocketAddr,
     connection: Option<Connection>,
@@ -23,6 +25,7 @@ impl Client {
         Ok(())
     }
 
+    // Sends a request to the server and waits for a response
     pub async fn send_request(&mut self, request: Request) -> ClientResult<Response> {
         if self.connection.is_none() {
             self.connect().await?;
