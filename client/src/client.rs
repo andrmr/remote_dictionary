@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use common::dto::{Request, Response};
-use common::net::Connection;
+use common::net::{Connection, BincodeConnection, Requester};
 
 pub type ClientResult<T> = anyhow::Result<T>;
 
@@ -9,7 +9,7 @@ pub type ClientResult<T> = anyhow::Result<T>;
 // TODO: add inner mutability for the connection field, so the client object can be used immutably
 pub struct Client {
     address: SocketAddr,
-    connection: Option<Connection>,
+    connection: Option<BincodeConnection>,
 }
 
 impl Client {
@@ -31,15 +31,11 @@ impl Client {
             self.connect().await?;
         }
 
-        self.connection.as_mut().unwrap()
-            .write(serde_json::to_value(request)?)
-            .await?;
-        
         let response = self.connection.as_mut().unwrap()
-            .read()
+            .request(request)
             .await?
             .unwrap_or_default();
 
-        Ok(serde_json::from_value::<Response>(response)?)
+        Ok(response)
     }
 }

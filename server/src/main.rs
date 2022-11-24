@@ -2,7 +2,7 @@ use std::{net::SocketAddr, str::FromStr, sync::Arc};
 use clap::Parser;
 use tokio::{net::TcpListener, sync::mpsc::{unbounded_channel, UnboundedSender}};
 
-use common::dto::{Request, Response};
+use common::{dto::{Request, Response}, net::{BincodeConnection, Listener}};
 use server::Db;
 
 const OK_GET: u8 = 0;
@@ -48,64 +48,62 @@ pub async fn main() -> anyhow::Result<()> {
         let (socket, address) = listener.accept().await?;
         println!("Accepted client with address {:?}", address);
 
-        let mut connection = common::net::Connection::from_socket(socket);
+        let mut connection = BincodeConnection::from_socket(socket);
         let dict = dict.clone();
         let s = stats.clone();
         let stats_producer = stats_producer.clone();
 
         tokio::spawn(async move {
-            while let Ok(Some(msg)) = connection.read().await {
-                if let Ok(req) = serde_json::from_value::<Request>(msg) {
-                    println!("Processing request {:?}", req);
-                    let res = match req {
-                        Request::Get { key } => {
-                            match dict.get(&key).await {
-                                Ok(Some(val)) => {
-                                    _ = stats_producer.send(true)
-                                        .map_err(|e| eprintln!("Unable to upload stats. Error: {}", e));
-                                    
-                                        Response::Get { ok: true, val: Some(val), err: None }
-                                },
-                                Ok(None) => {
-                                    _ = stats_producer.send(false)
-                                        .map_err(|e| eprintln!("Unable to upload stats. Error: {}", e));
+            while let Ok(Some(req)) = connection.listen().await {
+                println!("Processing request {:?}", req);
+                let res = match req {
+                    Request::Get { key } => {
+                        match dict.get(&key).await {
+                            Ok(Some(val)) => {
+                                _ = stats_producer.send(true)
+                                    .map_err(|e| eprintln!("Unable to upload stats. Error: {}", e));
+                                
+                                    Response::Get { ok: true, val: Some(val), err: None }
+                            },
+                            Ok(None) => {
+                                _ = stats_producer.send(false)
+                                    .map_err(|e| eprintln!("Unable to upload stats. Error: {}", e));
 
-                                    Response::Get { ok: false, val: None, err: Some(String::from("not found")) }
-                                },
-                                Err(e) => {
-                                    _ = stats_producer.send(false)
-                                        .map_err(|e| eprintln!("Unable to upload stats. Error: {}", e));
+                                Response::Get { ok: false, val: None, err: Some(String::from("not found")) }
+                            },
+                            Err(e) => {
+                                _ = stats_producer.send(false)
+                                    .map_err(|e| eprintln!("Unable to upload stats. Error: {}", e));
 
-                                    Response::Get { ok: false, val: None, err: Some(e.to_string()) }
-                                }
+                                Response::Get { ok: false, val: None, err: Some(e.to_string()) }
                             }
-                        },
-                        Request::Set { key, val } => {
-                            match dict.set(&key, &val).await {
-                                Ok(()) => Response::Set { ok: true, err: None },
-                                Err(e) => Response::Set { ok: false, err: Some(e.to_string()) }
+                        }
+                    },
+                    Request::Set { key, val } => {
+                        match dict.set(&key, &val).await {
+                            Ok(()) => Response::Set { ok: true, err: None },
+                            Err(e) => Response::Set { ok: false, err: Some(e.to_string()) }
+                        }
+                    },
+                    Request::Stats => {
+                        let mut response = Response::Stats { ok: false, total: None, good: None, bad: None };
+
+                        // NOTE: this is actually a bug in an async environment
+                        // the stats DB needs a locking/transaction mechanism
+                        // to retrieve both values in a single lock
+                        if let Ok(Some(good_count)) = s.get(&OK_GET).await {
+                            if let Ok(Some(bad_count)) = s.get(&BAD_GET).await {
+                                response = Response::Stats { ok: true, total: Some(good_count + bad_count), good: Some(good_count), bad: Some(bad_count) };
                             }
-                        },
-                        Request::Stats => {
-                            let mut response = Response::Stats { ok: false, total: None, good: None, bad: None };
+                        };
 
-                            // NOTE: this is actually a bug in an async environment
-                            // the stats DB needs a locking/transaction mechanism
-                            // to retrieve both values in a single lock
-                            if let Ok(Some(good_count)) = s.get(&OK_GET).await {
-                                if let Ok(Some(bad_count)) = s.get(&BAD_GET).await {
-                                    response = Response::Stats { ok: true, total: Some(good_count + bad_count), good: Some(good_count), bad: Some(bad_count) };
-                                }
-                            };
+                        response
+                    },
+                };
 
-                            response
-                        },
-                    };
-
-                    println!("Responding back");
-                    if let Err(e) = connection.write(serde_json::to_value(res).unwrap()).await {
-                        eprintln!("Response failed. Error {:?}", e)
-                    }
+                println!("Responding back");
+                if let Err(e) = connection.respond(res).await {
+                    eprintln!("Response failed. Error {:?}", e)
                 }
             }
         });
